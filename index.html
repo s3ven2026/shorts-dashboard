@@ -542,7 +542,9 @@ function insights(){
     if(!vids.length) continue;
     const gap=(now-Math.max(...vids.map(v=>+new Date(v.published))))/DAY;
     if(gap>=GAP_DAYS) out.push({kind:"gap", rank:1, ch, title:`${ch.name}: no new ${noun} in ${Math.floor(gap)} days`, detail:`Last post ${relTime(new Date(now-gap*DAY).toISOString())} · keep the schedule moving`, url:m.url});
-    const norm=median(vids.filter(v=>ageDays(v)>=2).map(vpd).filter(x=>x!=null));
+    // norm = typical views/day of the channel's recent Shorts (old ones have decayed and would make everything look like a breakout)
+    const settled=vids.filter(v=>ageDays(v)>=2), recent=settled.filter(v=>ageDays(v)<=90);
+    const norm=median((recent.length>=5?recent:settled).map(vpd).filter(x=>x!=null));
     if(!norm) continue;
     vids.filter(v=>(now-new Date(v.published))/DAY<=14 && v.views>=50 && vpd(v)>=BREAKOUT_X*norm).forEach(v=>{
       const x=vpd(v)/norm;
