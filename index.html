@@ -86,6 +86,11 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .tile .big{font-family:"Space Grotesk",sans-serif; font-size:27px; font-weight:700; letter-spacing:-.02em; font-variant-numeric:tabular-nums; padding-left:5px}
 .tile .sub{color:var(--muted); font-size:12px; margin-top:3px; padding-left:5px; display:flex; gap:10px; flex-wrap:wrap}
 .tile .sub b{color:var(--fg); font-weight:600}
+.tile[data-ch]{cursor:pointer}
+.tile[data-ch]:hover{border-color:var(--ch,var(--accent))}
+.tile[aria-pressed="true"]{border-color:var(--ch,var(--accent)); box-shadow:0 0 0 2px var(--ch,var(--accent))}
+.listhead{display:flex; align-items:baseline; gap:10px; margin:0 0 10px; scroll-margin-top:90px}
+.listhead h2{font-size:17px}
 .tile.loading .big::after{content:"···"; color:var(--faint)}
 .tile .tright{margin-left:auto; font-size:11.5px; font-weight:500; color:var(--faint); white-space:nowrap}
 .tile .tright.late{color:var(--warn); font-weight:600}
@@ -242,6 +247,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
       <div class="icards" id="icards"></div>
     </section>
 
+    <div class="listhead"><h2 id="listTitle"></h2><span class="updated" id="listCount"></span></div>
     <div class="controls">
       <label class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -513,7 +519,8 @@ function tileBody(s, extra){
 function renderTiles(loading){
   const all = scoped();
   const ready = !loading || all.length;
-  let html = `<div class="tile total"><div class="tname">All channels</div>${ready?tileBody(stats(all), `<div><span>Channels</span><b>${state.channels.length}</b></div>`):'<div class="big">···</div>'}</div>`;
+  const sel=state.activeChannels;
+  let html = `<div class="tile total" data-ch="" role="button" tabindex="0" aria-pressed="${!sel.size}" title="Show every channel"><div class="tname">All channels</div>${ready?tileBody(stats(all), `<div><span>Channels</span><b>${state.channels.length}</b></div>`):'<div class="big">···</div>'}</div>`;
   for(const ch of state.channels){
     const m = state.meta[ch.name], err = m && m.err;
     const vids = all.filter(v=>v.channel===ch.name);
@@ -524,7 +531,7 @@ function renderTiles(loading){
     const body = err ? `<div class="big">—</div><div class="sub"><span style="color:#ff8b8b">load failed: ${esc(err.message||"")}</span></div>`
       : m && (vids.length || !loading) ? tileBody(s, `<div><span>Subs</span><b>${m.hiddenSubs?"hidden":fmt(m.subs)}</b></div>`)
       : `<div class="big"></div><div class="sub"><span class="muted">waiting…</span></div>`;
-    html += `<div class="tile${!m&&loading?' loading':''}" style="--ch:${ch.color}">
+    html += `<div class="tile${!m&&loading?' loading':''}" data-ch="${esc(ch.name)}" role="button" tabindex="0" aria-pressed="${sel.size===1&&sel.has(ch.name)}" title="Show only ${esc(ch.name)}" style="--ch:${ch.color}">
       <div class="cstripe"></div>
       <div class="tname">${m&&m.avatar?`<img class="ava" src="${m.avatar}" alt="">`:`<span class="ava"></span>`}<a href="${m?m.url:'#'}" target="_blank" rel="noopener" style="text-decoration:none">${ch.name}</a>${right}</div>
       ${body}
@@ -556,7 +563,7 @@ function insights(){
     const ch=state.channels.find(c=>c.name===mover.channel);
     out.push({kind:"mover", rank:2, ch, title:mover.title, detail:`${mover.channel} · ${fmtGain(mover.gain1)} views since ${dayLabel(state.base1.date)} · biggest gain`, url:"https://www.youtube.com/watch?v="+mover.id});
   }
-  return out.sort((a,b)=>b.rank-a.rank).slice(0,8);
+  return out.filter(i=>!state.activeChannels.size || (i.ch && state.activeChannels.has(i.ch.name))).sort((a,b)=>b.rank-a.rank).slice(0,8);
 }
 function renderInsights(){
   const list=insights(), tag={breakout:"Breakout",mover:"Top mover",gap:"Posting gap"};
@@ -588,7 +595,9 @@ function visibleVideos(){
 }
 
 function render(){
-  const v = visibleVideos();
+  const v = visibleVideos(), sel=[...state.activeChannels];
+  $("#listTitle").textContent = sel.length ? sel.join(" + ") : "All channels";
+  $("#listCount").textContent = `${v.length} ${state.scope==="shorts"?"Shorts":"videos"}`;
   const rows = $("#rows");
   $("#emptyState").hidden = v.length>0;
   rows.innerHTML = v.map(x=>{
@@ -642,8 +651,17 @@ $("#chips").addEventListener("click",e=>{
   const b=e.target.closest(".chip"); if(!b) return;
   const n=b.dataset.ch;
   state.activeChannels.has(n)?state.activeChannels.delete(n):state.activeChannels.add(n);
-  renderChips(); render();
+  renderAll();
 });
+// click a channel card = show only that channel (click again or "All channels" to reset)
+function pickTile(t){
+  const n=t.dataset.ch, only=state.activeChannels.size===1&&state.activeChannels.has(n);
+  state.activeChannels = new Set(n&&!only ? [n] : []);
+  renderAll();
+  $(".listhead").scrollIntoView({behavior:"smooth", block:"start"});
+}
+$("#tiles").addEventListener("click",e=>{ const t=e.target.closest(".tile[data-ch]"); if(t && !e.target.closest("a")) pickTile(t); });
+$("#tiles").addEventListener("keydown",e=>{ const t=e.target.closest(".tile[data-ch]"); if(t && (e.key==="Enter"||e.key===" ")){ e.preventDefault(); pickTile(t); } });
 $("#search").addEventListener("input",e=>{ state.query=e.target.value.trim(); render(); });
 document.querySelectorAll("th.sortable").forEach(th=>{
   th.addEventListener("click",()=>{
