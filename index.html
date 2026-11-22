@@ -440,7 +440,9 @@ async function loadChannel(ch){
   // page through uploads for video ids
   let ids=[], page="";
   for(let i=0;i<20;i++){ // cap ~1000 videos/channel
-    const pl = await yt("playlistItems", {part:"contentDetails", playlistId:uploads, maxResults:50, ...(page?{pageToken:page}:{})});
+    let pl;
+    try{ pl = await yt("playlistItems", {part:"contentDetails", playlistId:uploads, maxResults:50, ...(page?{pageToken:page}:{})}); }
+    catch(e){ if(e.reason==="playlistNotFound") break; throw e; }  // a channel with no public videos yet has no uploads playlist
     (pl.items||[]).forEach(it=> ids.push(it.contentDetails.videoId));
     page = pl.nextPageToken; if(!page) break;
   }
