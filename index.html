@@ -335,7 +335,8 @@ const DEFAULT_CHANNELS = [
   { name:"Mogra Diaries",     handle:"@MograDiaries",    id:"UC1uL_REDD8_NANty446rOLg", color:"#ff5c8a" },
   { name:"Pulli the Bunny",   handle:"@PulliTheBunny",   id:"",                          color:"#36c98f" },
   { name:"Raveholic",         handle:"@raveholic",       id:"",                          color:"#9b6bff" },
-  { name:"Hanuman Se Seekho", handle:"@hanumanseseekho", id:"UCa8SRz_r-EETYbcqqwoODoA", color:"#ff9f45" }
+  { name:"Hanuman Se Seekho", handle:"@hanumanseseekho", id:"UCa8SRz_r-EETYbcqqwoODoA", color:"#ff9f45" },
+  { name:"Clipped Hard",      handle:"@clippedhardtv",   id:"UCvrYxwCR_ntGOtk79EiIz9g", color:"#00c8e0" }
 ];
 const API = "https://www.googleapis.com/youtube/v3/";
 const SHORT_MAX_SEC = 180;
@@ -347,7 +348,7 @@ const AUTO_MS = 30*60e3;
 
 let state = {
   key: LS.get("yt_key",""),
-  channels: LS.get("yt_channels", DEFAULT_CHANNELS),
+  channels: (saved => saved.concat(DEFAULT_CHANNELS.filter(d => !saved.some(c => c.name === d.name))))(LS.get("yt_channels", DEFAULT_CHANNELS)),  // browsers with a saved list still pick up newly added channels
   scope: LS.get("yt_scope","shorts"),
   period: +LS.get("yt_period",0),   // 0 = any time, else posted within N days
   activeChannels: new Set(),   // empty = all
